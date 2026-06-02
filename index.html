@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TrackIt — VIT Shuttle Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ============================
+   RESET & ROOT
+   ============================ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --ink:     #0a0a0a;
+  --ink-2:   #1a1a1a;
+  --ink-3:   #2e2e2e;
+  --charcoal:#3d3d3d;
+  --ash:     #6b6b6b;
+  --silver:  #a8a8a8;
+  --mist:    #d4d4d4;
+  --fog:     #ebebeb;
+  --paper:   #f5f5f5;
+  --snow:    #fafafa;
+  --white:   #ffffff;
+
+  --accent:  #0a0a0a;
+  --accent-h:#2e2e2e;
+
+  --r-sm: 6px;
+  --r-md: 12px;
+  --r-lg: 20px;
+  --r-xl: 32px;
+
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  width:100%; height:100%;
+  overflow:hidden;
+  background: var(--ink);
+}
+
+/* ============================
+   PAGES SYSTEM
+   ============================ */
+.page {
+  position: fixed; inset:0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s ease;
+  z-index: 1;
+}
+.page.active {
+  opacity: 1;
+  pointer-events: all;
+  z-index: 10;
+}
+
+/* ============================
+   PAGE 0 — LOADER
+   ============================ */
+#loader {
+  background: var(--ink);
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.loader-stage { position:relative; width:100%; height:100vh; overflow:hidden; }
+
+/* subtle grid */
+.l-grid {
+  position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px);
+  background-size:56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 30%, transparent 90%);
+          mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 30%, transparent 90%);
+}
+
+/* Road */
+.l-road {
+  position:absolute;bottom:30%;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.12) 20%,rgba(255,255,255,0.25) 50%,rgba(255,255,255,0.12) 80%,transparent 100%);
+}
+.l-road::after {
+  content:'';position:absolute;inset:-12px 0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);
+  filter:blur(8px);
+}
+
+/* Streaks */
+.l-streaks { position:absolute;bottom:30%;left:0;right:0;height:1px;overflow:hidden; }
+.l-streak {
+  position:absolute;top:0;height:1px;width:80px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent);
+  opacity:0;
+  animation:lStreak 2.4s linear infinite;
+}
+@keyframes lStreak {
+  0%   {transform:translateX(110vw);opacity:0;}
+  10%  {opacity:0.6;}
+  90%  {opacity:0.6;}
+  100% {transform:translateX(-200px);opacity:0;}
+}
+
+/* Scene */
+.l-scene {
+  position:absolute;bottom:30%;left:0;right:0;height:200px;
+  pointer-events:none;
+}
+
+/* Flash */
+.l-flash {
+  position:absolute;top:50%;left:50%;
+  width:100px;height:100px;margin:-50px 0 0 -50px;
+  border-radius:50%;
+  background:radial-gradient(circle,#fff 0%,rgba(200,200,200,0.9) 18%,rgba(100,100,100,0.5) 48%,transparent 70%);
+  filter:blur(14px);
+  opacity:0;
+  animation:lFlash 0.6s ease-out 1.40s;
+  will-change:transform,opacity;
+}
+@keyframes lFlash {
+  0%  {transform:scale(0);opacity:0;}
+  25% {opacity:1;}
+  100%{transform:scale(8);opacity:0;}
+}
+
+/* Ring */
+.l-ring {
+  position:absolute;top:50%;left:50%;
+  width:0;height:0;margin:0;
+  border-radius:50%;
+  border:1.5px solid rgba(255,255,255,0.6);
+  opacity:0;
+  animation:lRing 0.7s cubic-bezier(0.16,1,0.3,1) 1.40s;
+  will-change:transform,opacity;
+}
+@keyframes lRing {
+  0%  {width:0;height:0;margin:0;opacity:0;}
+  20% {opacity:1;}
+  100%{width:700px;height:700px;margin:-350px 0 0 -350px;opacity:0;}
+}
+
+/* Tire */
+.l-tire {
+  position:absolute;bottom:0;left:50%;
+  width:140px;height:140px;margin-left:-70px;
+  transform:translateX(60vw) rotate(0deg);
+  opacity:0;
+  filter:drop-shadow(0 4px 18px rgba(255,255,255,0.1));
+  animation:lTire 1.45s cubic-bezier(0.5,0,0.2,1) 0.3s forwards;
+  z-index:3;
+  will-change:transform,opacity;
+}
+@keyframes lTire {
+  0%  {transform:translateX(60vw) rotate(0deg);opacity:0;}
+  8%  {opacity:1;}
+  85% {transform:translateX(0) rotate(360deg);opacity:1;}
+  100%{transform:translateX(0) rotate(360deg) scale(0.35);opacity:0;}
+}
+
+/* Shuttle */
+.l-shuttle {
+  position:absolute;bottom:0;left:50%;
+  width:380px;height:190px;margin-left:-190px;
+  transform:translateX(0) scale(0.3);
+  opacity:0;
+  filter:drop-shadow(0 10px 28px rgba(255,255,255,0.08));
+  animation:lShuttle 2.45s cubic-bezier(0.4,0,0.4,1) 1.50s forwards;
+  z-index:4;
+  will-change:transform,opacity;
+}
+@keyframes lShuttle {
+  0%  {transform:translateX(0) scale(0.3);opacity:0;animation-timing-function:cubic-bezier(0.34,1.56,0.64,1);}
+  12% {transform:translateX(0) scale(1.12);opacity:1;animation-timing-function:cubic-bezier(0.34,1.56,0.64,1);}
+  22% {transform:translateX(0) scale(1);opacity:1;animation-timing-function:ease-out;}
+  30% {transform:translateX(-8vw) translateY(-12px) scale(1);}
+  38% {transform:translateX(-16vw) translateY(0) scale(1);}
+  46% {transform:translateX(-26vw) translateY(-4px) scale(1);}
+  54% {transform:translateX(-36vw) translateY(0) scale(1);animation-timing-function:cubic-bezier(0.4,0,0.4,1);}
+  100%{transform:translateX(-115vw) translateY(0) scale(1);opacity:0.9;}
+}
+
+/* Brand center */
+.l-brand-wrap {
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  text-align:center;
+  z-index:10;
+  pointer-events:none;
+}
+.l-brand {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(72px,10vw,130px);
+  letter-spacing:0.12em;
+  line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.l-letter {
+  display:inline-block;
+  opacity:0;
+  transform:translateY(30px) scale(0.88);
+  color:var(--white);
+}
+.l-letter.in { animation:lLetterIn 0.65s cubic-bezier(0.16,1,0.3,1) forwards; }
+@keyframes lLetterIn { to {opacity:1;transform:translateY(0) scale(1);} }
+
+.l-accent {
+  margin:10px auto 0;
+  height:1.5px;width:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.7),transparent);
+  animation:lAccent 1s cubic-bezier(0.16,1,0.3,1) 2.6s forwards;
+}
+@keyframes lAccent { to{width:75%;} }
+
+.l-tagline {
+  margin-top:20px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.45em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,0.4);
+  opacity:0;
+  transform:translateY(8px);
+}
+.l-tagline.in { animation:lTagIn 0.7s ease-out forwards; }
+@keyframes lTagIn { to{opacity:1;transform:translateY(0);} }
+
+/* Progress bar bottom */
+.l-progress-wrap {
+  position:absolute;bottom:0;left:0;right:0;
+  height:2px;
+  background:rgba(255,255,255,0.06);
+}
+.l-progress-bar {
+  height:100%;width:0%;
+  background:rgba(255,255,255,0.5);
+  animation:lProgress 3.8s cubic-bezier(0.4,0,0.2,1) 0.2s forwards;
+}
+@keyframes lProgress { to{width:100%;} }
+
+/* ============================
+   NAV BAR (reusable)
+   ============================ */
+.nav {
+  position:fixed;top:0;left:0;right:0;
+  height:62px;
+  background:rgba(10,10,10,0.96);
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;
+  z-index:100;
+  backdrop-filter:blur(20px);
+}
+.nav-logo {
+  display:flex;align-items:center;gap:10px;
+}
+.nav-bus-icon {
+  width:30px;height:30px;
+}
+.nav-wordmark {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:22px;
+  letter-spacing:0.12em;
+  color:var(--white);
+}
+.nav-right {
+  display:flex;align-items:center;gap:14px;
+}
+.nav-chip {
+  padding:5px 12px;
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:999px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:rgba(255,255,255,0.5);
+}
+.nav-live {
+  display:flex;align-items:center;gap:6px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:rgba(255,255,255,0.5);
+}
+.nav-dot {
+  width:6px;height:6px;border-radius:50%;
+  background:#4caf50;
+  box-shadow:0 0 8px #4caf50;
+  animation:navPulse 1.8s ease-in-out infinite;
+}
+@keyframes navPulse {
+  0%,100%{opacity:0.6;transform:scale(1);}
+  50%{opacity:1;transform:scale(1.3);}
+}
+
+/* ============================
+   PAGE 1 — LOGIN
+   ============================ */
+#login {
+  background:var(--ink);
+  overflow:hidden;
+}
+.login-container {
+  width:100%;height:100vh;
+  display:grid;grid-template-columns:1fr 1fr;
+}
+
+/* Left panel — visual */
+.login-visual {
+  background:var(--ink-2);
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  border-right:1px solid rgba(255,255,255,0.06);
+}
+.login-visual-grid {
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+.login-visual-content {
+  position:relative;z-index:2;
+  text-align:center;
+  padding:40px;
+}
+.lv-big-bus {
+  width:240px;margin:0 auto 32px;
+  filter:drop-shadow(0 20px 40px rgba(255,255,255,0.05));
+}
+.lv-tagline {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:42px;
+  letter-spacing:0.1em;
+  color:var(--white);
+  line-height:1.1;
+}
+.lv-sub {
+  margin-top:12px;
+  font-size:13px;
+  color:var(--ash);
+  letter-spacing:0.04em;
+}
+.lv-stats {
+  display:flex;gap:32px;justify-content:center;
+  margin-top:40px;
+}
+.lv-stat-num {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:36px;
+  color:var(--white);
+}
+.lv-stat-label {
+  font-size:11px;
+  color:var(--ash);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+}
+
+/* Right panel — form */
+.login-form-panel {
+  display:flex;align-items:center;justify-content:center;
+  padding:60px 48px;
+  background:var(--ink);
+}
+.login-form-inner {
+  width:100%;max-width:380px;
+}
+.login-eyebrow {
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.3em;
+  text-transform:uppercase;
+  color:var(--ash);
+  margin-bottom:20px;
+}
+.login-title {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:52px;
+  letter-spacing:0.06em;
+  color:var(--white);
+  line-height:1;
+  margin-bottom:8px;
+}
+.login-subtitle {
+  font-size:13px;
+  color:var(--ash);
+  margin-bottom:42px;
+}
+
+.form-group {
+  margin-bottom:20px;
+}
+.form-label {
+  display:block;
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--silver);
+  margin-bottom:8px;
+}
+.form-input {
+  width:100%;
+  padding:14px 16px;
+  background:var(--ink-2);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:var(--r-md);
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;
+  color:var(--white);
+  outline:none;
+  transition:border-color 0.2s,box-shadow 0.2s;
+}
+.form-input::placeholder { color:var(--charcoal); }
+.form-input:focus {
+  border-color:rgba(255,255,255,0.3);
+  box-shadow:0 0 0 3px rgba(255,255,255,0.05);
+}
+.form-input-wrap {
+  position:relative;
+}
+.form-input-icon {
+  position:absolute;right:14px;top:50%;transform:translateY(-50%);
+  color:var(--ash);
+  pointer-events:none;
+}
+
+.form-hint {
+  margin-top:6px;
+  font-size:11px;
+  color:var(--charcoal);
+}
+
+.login-btn {
+  width:100%;
+  margin-top:10px;
+  padding:15px;
+  background:var(--white);
+  color:var(--ink);
+  border:none;
+  border-radius:var(--r-md);
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;
+  font-weight:700;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:background 0.2s,transform 0.15s;
+}
+.login-btn:hover {
+  background:var(--fog);
+  transform:translateY(-1px);
+}
+.login-btn:active { transform:translateY(0); }
+
+.login-divider {
+  display:flex;align-items:center;gap:12px;
+  margin:24px 0;
+}
+.login-divider-line {
+  flex:1;height:1px;background:rgba(255,255,255,0.07);
+}
+.login-divider-text {
+  font-size:11px;color:var(--charcoal);letter-spacing:0.08em;
+}
+
+.google-btn {
+  width:100%;
+  padding:14px;
+  background:transparent;
+  color:var(--silver);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:var(--r-md);
+  font-family:'DM Sans',sans-serif;
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  transition:border-color 0.2s,color 0.2s;
+}
+.google-btn:hover { border-color:rgba(255,255,255,0.22);color:var(--white); }
+
+/* ============================
+   PAGE 2 — ENTER LOCATION
+   ============================ */
+#location-page {
+  background:var(--ink);
+  display:flex;align-items:center;justify-content:center;
+}
+.location-card {
+  width:100%;max-width:480px;
+  padding:52px 48px;
+  background:var(--ink-2);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:var(--r-xl);
+  text-align:center;
+}
+.location-icon-ring {
+  width:72px;height:72px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.1);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 28px;
+  font-size:32px;
+}
+.location-title {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:44px;letter-spacing:0.08em;
+  color:var(--white);margin-bottom:8px;
+}
+.location-sub {
+  font-size:13px;color:var(--ash);margin-bottom:36px;
+}
+.location-options {
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  margin-bottom:24px;
+}
+.loc-option {
+  padding:16px 12px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:var(--r-md);
+  cursor:pointer;
+  transition:all 0.2s;
+  text-align:center;
+}
+.loc-option:hover {
+  background:rgba(255,255,255,0.08);
+  border-color:rgba(255,255,255,0.2);
+}
+.loc-option.selected {
+  background:rgba(255,255,255,0.1);
+  border-color:rgba(255,255,255,0.35);
+}
+.loc-option-icon { font-size:22px;margin-bottom:6px; }
+.loc-option-label {
+  font-size:12px;font-weight:600;
+  letter-spacing:0.04em;
+  color:var(--silver);
+}
+.loc-option.selected .loc-option-label { color:var(--white); }
+
+.loc-search {
+  width:100%;
+  padding:14px 16px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:var(--r-md);
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;color:var(--white);
+  outline:none;
+  transition:border-color 0.2s;
+  margin-bottom:20px;
+  text-align:center;
+}
+.loc-search::placeholder { color:var(--charcoal); }
+.loc-search:focus { border-color:rgba(255,255,255,0.25); }
+
+.loc-continue-btn {
+  width:100%;
+  padding:15px;
+  background:var(--white);color:var(--ink);
+  border:none;border-radius:var(--r-md);
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;font-weight:700;
+  letter-spacing:0.06em;text-transform:uppercase;
+  cursor:pointer;
+  transition:background 0.2s,transform 0.15s;
+}
+.loc-continue-btn:hover { background:var(--fog);transform:translateY(-1px); }
+
+/* ============================
+   PAGE 3 — MAIN DASHBOARD
+   ============================ */
+#dashboard {
+  background:var(--paper);
+  overflow:hidden;
+}
+
+.dash-layout {
+  display:grid;
+  grid-template-columns:340px 1fr;
+  height:100vh;
+  padding-top:62px;
+}
+
+/* ---- Sidebar ---- */
+.dash-sidebar {
+  background:var(--ink);
+  border-right:1px solid rgba(255,255,255,0.06);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.sidebar-scroll {
+  flex:1;overflow-y:auto;padding:20px;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent;
+}
+
+.sidebar-section-label {
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:0.3em;text-transform:uppercase;
+  color:var(--charcoal);
+  margin:20px 0 10px;
+}
+
+/* Filter chips */
+.filter-row {
+  display:flex;gap:7px;flex-wrap:wrap;
+  margin-bottom:16px;
+}
+.filter-chip {
+  padding:7px 14px;
+  border-radius:999px;
+  font-size:11px;font-weight:600;letter-spacing:0.04em;
+  cursor:pointer;transition:all 0.2s;
+  border:1px solid rgba(255,255,255,0.1);
+  background:transparent;color:var(--ash);
+}
+.filter-chip:hover { border-color:rgba(255,255,255,0.22);color:var(--silver); }
+.filter-chip.active {
+  background:var(--white);color:var(--ink);border-color:var(--white);
+}
+.filter-chip.ladies { }
+.filter-chip.mens { }
+.filter-chip.common { }
+
+/* Bus cards */
+.bus-card {
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:var(--r-lg);
+  padding:16px;
+  margin-bottom:10px;
+  cursor:pointer;
+  transition:all 0.2s;
+  position:relative;
+  overflow:hidden;
+}
+.bus-card:hover {
+  background:rgba(255,255,255,0.07);
+  border-color:rgba(255,255,255,0.15);
+  transform:translateX(2px);
+}
+.bus-card.selected {
+  border-color:rgba(255,255,255,0.3);
+  background:rgba(255,255,255,0.08);
+}
+.bus-card-header {
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.bus-route-id {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:20px;letter-spacing:0.08em;
+  color:var(--white);
+}
+.bus-status-dot {
+  width:8px;height:8px;border-radius:50%;
+}
+.bus-status-dot.moving { background:#4caf50;box-shadow:0 0 8px #4caf50; }
+.bus-status-dot.stopped { background:#ff9800;box-shadow:0 0 8px #ff9800; }
+.bus-status-dot.idle { background:var(--charcoal); }
+
+.bus-route-label {
+  font-size:12px;color:var(--ash);margin-bottom:10px;
+  display:flex;align-items:center;gap:6px;
+}
+.bus-route-arrow { color:var(--charcoal); }
+
+.bus-card-footer {
+  display:flex;align-items:center;justify-content:space-between;
+}
+.bus-eta {
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px;font-weight:500;
+  color:var(--white);
+}
+.bus-eta-label { font-size:10px;color:var(--ash); }
+.bus-capacity-bar {
+  width:80px;height:4px;
+  background:rgba(255,255,255,0.08);
+  border-radius:2px;overflow:hidden;
+}
+.bus-capacity-fill {
+  height:100%;border-radius:2px;
+  transition:width 0.5s ease;
+}
+.bus-capacity-fill.low  { background:#4caf50; }
+.bus-capacity-fill.mid  { background:#ff9800; }
+.bus-capacity-fill.high { background:#f44336; }
+
+.bus-tag {
+  font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+  padding:3px 8px;border-radius:999px;
+}
+.bus-tag.ladies { background:rgba(233,30,99,0.15);color:#e91e63; }
+.bus-tag.mens   { background:rgba(33,150,243,0.15);color:#2196f3; }
+.bus-tag.common { background:rgba(255,255,255,0.08);color:var(--silver); }
+
+/* Schedule strip */
+.schedule-strip {
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:var(--r-md);
+  padding:14px;
+  margin-bottom:10px;
+}
+.schedule-time-row {
+  display:flex;align-items:center;gap:10px;
+  padding:8px 0;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+}
+.schedule-time-row:last-child { border:none;padding-bottom:0; }
+.schedule-time {
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;color:var(--silver);
+  width:48px;
+}
+.schedule-route {
+  font-size:12px;color:var(--ash);flex:1;
+}
+.schedule-status {
+  font-size:10px;font-weight:600;letter-spacing:0.06em;
+}
+.schedule-status.on-time { color:#4caf50; }
+.schedule-status.delayed { color:#ff9800; }
+
+/* SOS & alert */
+.sos-btn {
+  margin:0 20px 20px;
+  padding:14px;
+  background:rgba(244,67,54,0.1);
+  border:1px solid rgba(244,67,54,0.25);
+  border-radius:var(--r-md);
+  color:#f44336;
+  font-family:'DM Sans',sans-serif;
+  font-size:13px;font-weight:700;
+  letter-spacing:0.1em;text-transform:uppercase;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all 0.2s;
+}
+.sos-btn:hover { background:rgba(244,67,54,0.18);border-color:rgba(244,67,54,0.45); }
+
+/* ---- Map area ---- */
+.dash-map-area {
+  position:relative;
+  background:var(--ink-3);
+  overflow:hidden;
+}
+
+/* Fake map */
+.fake-map {
+  width:100%;height:100%;
+  position:absolute;inset:0;
+}
+.map-bg {
+  width:100%;height:100%;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(255,255,255,0.015) 0%, transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(255,255,255,0.01) 0%, transparent 40%),
+    var(--ink-3);
+}
+.map-grid {
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px);
+  background-size:50px 50px;
+}
+
+/* Stylized campus roads */
+.map-roads { position:absolute;inset:0; }
+.road-line {
+  position:absolute;
+  background:rgba(255,255,255,0.08);
+}
+.road-line.h { height:2px;left:0;right:0; }
+.road-line.v { width:2px;top:0;bottom:0; }
+.road-line.thick { background:rgba(255,255,255,0.12); }
+
+/* Campus blocks */
+.campus-block {
+  position:absolute;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:4px;
+}
+.campus-label {
+  position:absolute;
+  font-family:'JetBrains Mono',monospace;
+  font-size:8px;letter-spacing:0.1em;text-transform:uppercase;
+  color:rgba(255,255,255,0.3);
+  white-space:nowrap;
+}
+
+/* Bus markers on map */
+.map-bus {
+  position:absolute;
+  transform:translate(-50%,-50%);
+  z-index:20;cursor:pointer;
+  transition:transform 0.8s ease;
+}
+.map-bus-icon {
+  width:36px;height:36px;
+  background:var(--white);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 16px rgba(0,0,0,0.4);
+  font-size:16px;
+  border:3px solid var(--ink);
+  transition:all 0.2s;
+}
+.map-bus:hover .map-bus-icon { transform:scale(1.15);box-shadow:0 6px 24px rgba(0,0,0,0.6); }
+.map-bus-label {
+  position:absolute;top:-28px;left:50%;transform:translateX(-50%);
+  background:var(--ink);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:999px;
+  padding:3px 10px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:0.08em;color:var(--white);
+  white-space:nowrap;
+}
+.map-bus-pulse {
+  position:absolute;top:50%;left:50%;
+  width:36px;height:36px;
+  border-radius:50%;
+  border:2px solid rgba(255,255,255,0.3);
+  transform:translate(-50%,-50%);
+  animation:busPulse 2s ease-out infinite;
+}
+@keyframes busPulse {
+  0%  {transform:translate(-50%,-50%) scale(1);opacity:0.6;}
+  100%{transform:translate(-50%,-50%) scale(2.5);opacity:0;}
+}
+
+/* My location marker */
+.map-me {
+  position:absolute;
+  transform:translate(-50%,-50%);
+  z-index:15;
+}
+.map-me-dot {
+  width:14px;height:14px;border-radius:50%;
+  background:var(--white);
+  border:3px solid var(--ink);
+  box-shadow:0 2px 12px rgba(255,255,255,0.3);
+}
+.map-me-ring {
+  position:absolute;top:50%;left:50%;
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(255,255,255,0.2);
+  transform:translate(-50%,-50%);
+  animation:mePulse 2.5s ease-out infinite;
+}
+@keyframes mePulse {
+  0%  {transform:translate(-50%,-50%) scale(1);opacity:0.7;}
+  100%{transform:translate(-50%,-50%) scale(3.5);opacity:0;}
+}
+
+/* Map overlay controls */
+.map-controls {
+  position:absolute;top:20px;right:20px;
+  display:flex;flex-direction:column;gap:8px;
+  z-index:30;
+}
+.map-ctrl-btn {
+  width:40px;height:40px;
+  background:var(--ink);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:var(--r-sm);
+  color:var(--silver);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:16px;
+  transition:all 0.2s;
+  backdrop-filter:blur(10px);
+}
+.map-ctrl-btn:hover { border-color:rgba(255,255,255,0.25);color:var(--white); }
+
+/* ETA overlay card */
+.map-eta-card {
+  position:absolute;bottom:20px;left:20px;
+  background:var(--ink);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:var(--r-lg);
+  padding:18px 20px;
+  z-index:30;
+  min-width:220px;
+  backdrop-filter:blur(20px);
+}
+.meta-eta-title {
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:0.25em;text-transform:uppercase;
+  color:var(--ash);margin-bottom:8px;
+}
+.meta-eta-value {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:48px;letter-spacing:0.05em;
+  color:var(--white);line-height:1;
+}
+.meta-eta-sub {
+  font-size:11px;color:var(--ash);margin-top:4px;
+}
+.meta-eta-progress {
+  margin-top:14px;height:2px;
+  background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;
+}
+.meta-eta-fill {
+  height:100%;border-radius:2px;
+  background:var(--white);
+  width:35%;
+  animation:etaShift 8s linear infinite;
+}
+@keyframes etaShift { to{width:90%;} }
+
+/* Announcements panel */
+.map-announce {
+  position:absolute;top:20px;left:20px;
+  background:rgba(10,10,10,0.9);
+  border:1px solid rgba(255,152,0,0.3);
+  border-radius:var(--r-md);
+  padding:12px 16px;
+  z-index:30;
+  max-width:260px;
+  backdrop-filter:blur(20px);
+}
+.map-announce-icon { font-size:13px;margin-bottom:4px; }
+.map-announce-text {
+  font-size:11px;color:rgba(255,152,0,0.9);
+  line-height:1.5;
+}
+
+/* Search top bar on map */
+.map-search-bar {
+  position:absolute;top:20px;left:50%;
+  transform:translateX(-50%);
+  z-index:30;
+  width:280px;
+}
+.map-search-input {
+  width:100%;
+  padding:11px 16px 11px 36px;
+  background:rgba(10,10,10,0.9);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:999px;
+  font-family:'DM Sans',sans-serif;
+  font-size:12px;color:var(--white);
+  outline:none;
+  backdrop-filter:blur(20px);
+  transition:border-color 0.2s;
+}
+.map-search-input::placeholder { color:var(--charcoal); }
+.map-search-input:focus { border-color:rgba(255,255,255,0.25); }
+.map-search-icon {
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  color:var(--ash);font-size:13px;
+}
+
+/* Bottom tab bar */
+.dash-tabbar {
+  position:fixed;bottom:0;left:340px;right:0;
+  height:58px;
+  background:rgba(10,10,10,0.95);
+  border-top:1px solid rgba(255,255,255,0.06);
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  z-index:50;
+  backdrop-filter:blur(20px);
+  padding:0 20px;
+}
+.tab-btn {
+  flex:1;max-width:100px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:8px;
+  border-radius:var(--r-md);
+  cursor:pointer;
+  transition:all 0.2s;
+  border:none;background:transparent;
+  color:var(--charcoal);
+}
+.tab-btn:hover { color:var(--silver); }
+.tab-btn.active { color:var(--white); background:rgba(255,255,255,0.06); }
+.tab-icon { font-size:18px; }
+.tab-label {
+  font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;
+}
+
+/* Notification badge */
+.badge {
+  position:absolute;top:-2px;right:-2px;
+  width:16px;height:16px;border-radius:50%;
+  background:#f44336;
+  font-size:8px;font-weight:700;color:#fff;
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* Crowd heatmap legend */
+.heatmap-legend {
+  position:absolute;bottom:20px;right:20px;
+  background:rgba(10,10,10,0.88);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:var(--r-md);
+  padding:12px 14px;
+  z-index:30;
+}
+.heatmap-legend-title {
+  font-family:'JetBrains Mono',monospace;
+  font-size:8px;letter-spacing:0.2em;text-transform:uppercase;
+  color:var(--ash);margin-bottom:8px;
+}
+.heatmap-row {
+  display:flex;align-items:center;gap:8px;margin-bottom:5px;
+}
+.heatmap-swatch {
+  width:22px;height:6px;border-radius:3px;
+}
+.heatmap-row-label {
+  font-size:10px;color:var(--silver);
+}
+
+/* ============================
+   UTILITIES
+   ============================ */
+.hidden { display:none!important; }
+
+/* Bus moving animation on map */
+@keyframes busMove1 {
+  0%,100%{left:22%;top:48%;}
+  33%{left:35%;top:38%;}
+  66%{left:50%;top:42%;}
+}
+@keyframes busMove2 {
+  0%,100%{left:60%;top:62%;}
+  33%{left:72%;top:52%;}
+  66%{left:55%;top:55%;}
+}
+@keyframes busMove3 {
+  0%,100%{left:40%;top:28%;}
+  50%{left:55%;top:20%;}
+}
+.map-bus-1 { animation: busMove1 22s ease-in-out infinite; }
+.map-bus-2 { animation: busMove2 18s ease-in-out infinite; }
+.map-bus-3 { animation: busMove3 28s ease-in-out infinite; }
+
+/* ============================
+   RESPONSIVE ADJUSTMENTS
+   ============================ */
+@media (max-width: 900px) {
+  .login-visual { display:none; }
+  .login-container { grid-template-columns:1fr; }
+  .dash-layout { grid-template-columns:1fr; }
+  .dash-sidebar { display:none; }
+  .dash-tabbar { left:0; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================================
+     PAGE 0 — LOADER
+================================ -->
+<div class="page active" id="loader">
+  <div class="loader-stage">
+    <div class="l-grid"></div>
+
+    <!-- Road -->
+    <div class="l-road"></div>
+    <div class="l-streaks" id="lStreaks"></div>
+
+    <!-- Animation scene -->
+    <div class="l-scene">
+      <div class="l-flash"></div>
+      <div class="l-ring"></div>
+
+      <!-- Tire SVG -->
+      <svg class="l-tire" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="rimBase" cx="50%" cy="50%" r="55%">
+            <stop offset="0%" stop-color="#4a4a55"/>
+            <stop offset="78%" stop-color="#2a2a32"/>
+            <stop offset="100%" stop-color="#10101a"/>
+          </radialGradient>
+          <linearGradient id="spokeGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stop-color="#aaa"/>
+            <stop offset="55%" stop-color="#555"/>
+            <stop offset="100%" stop-color="#222"/>
+          </linearGradient>
+          <radialGradient id="hubGrad" cx="50%" cy="50%">
+            <stop offset="0%" stop-color="#ccc"/>
+            <stop offset="60%" stop-color="#666"/>
+            <stop offset="100%" stop-color="#222"/>
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="93" fill="#0c0c12"/>
+        <circle cx="100" cy="100" r="93" fill="none" stroke="#333" stroke-width="1"/>
+        <g stroke="#111" stroke-width="2" stroke-linecap="round">
+          <line x1="100" y1="9" x2="100" y2="24"/>
+          <line x1="100" y1="176" x2="100" y2="191"/>
+          <line x1="9" y1="100" x2="24" y2="100"/>
+          <line x1="176" y1="100" x2="191" y2="100"/>
+          <line x1="33" y1="33" x2="44" y2="44"/>
+          <line x1="156" y1="156" x2="167" y2="167"/>
+          <line x1="33" y1="167" x2="44" y2="156"/>
+          <line x1="156" y1="44" x2="167" y2="33"/>
+        </g>
+        <circle cx="100" cy="100" r="72" fill="none" stroke="#1c1c24" stroke-width="1.5"/>
+        <circle cx="100" cy="100" r="69" fill="url(#rimBase)"/>
+        <g fill="url(#spokeGrad)">
+          <g transform="rotate(0 100 100)"><path d="M100 100 L96 38 Q96 32 100 32 Q104 32 104 38 L104 100Z"/></g>
+          <g transform="rotate(72 100 100)"><path d="M100 100 L96 38 Q96 32 100 32 Q104 32 104 38 L104 100Z"/></g>
+          <g transform="rotate(144 100 100)"><path d="M100 100 L96 38 Q96 32 100 32 Q104 32 104 38 L104 100Z"/></g>
+          <g transform="rotate(216 100 100)"><path d="M100 100 L96 38 Q96 32 100 32 Q104 32 104 38 L104 100Z"/></g>
+          <g transform="rotate(288 100 100)"><path d="M100 100 L96 38 Q96 32 100 32 Q104 32 104 38 L104 100Z"/></g>
+        </g>
+        <circle cx="100" cy="100" r="20" fill="#0a0a10"/>
+        <circle cx="100" cy="100" r="16" fill="url(#hubGrad)"/>
+        <circle cx="100" cy="100" r="5" fill="#3a3a45"/>
+        <circle cx="100" cy="100" r="2" fill="#888"/>
+      </svg>
+
+      <!-- Bus/Shuttle SVG -->
+      <svg class="l-shuttle" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="bBodyGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stop-color="#fafafa"/>
+            <stop offset="50%" stop-color="#e2e2e2"/>
+            <stop offset="100%" stop-color="#b8b8b8"/>
+          </linearGradient>
+          <linearGradient id="bWindowGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stop-color="#0a0a18"/>
+            <stop offset="100%" stop-color="#1a1a2e"/>
+          </linearGradient>
+          <linearGradient id="bAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#fff"/>
+            <stop offset="50%" stop-color="#aaa"/>
+            <stop offset="100%" stop-color="#fff"/>
+          </linearGradient>
+        </defs>
+        <ellipse cx="200" cy="180" rx="160" ry="5" fill="#000" opacity="0.35"/>
+        <path d="M30 145 L30 88 Q30 56 60 56 L340 56 Q370 56 370 88 L370 145Z" fill="url(#bBodyGrad)"/>
+        <line x1="35" y1="62" x2="365" y2="62" stroke="url(#bAccent)" stroke-width="1.5" opacity="0.7"/>
+        <g>
+          <rect x="50" y="78" width="36" height="34" rx="4" fill="url(#bWindowGrad)"/>
+          <rect x="94" y="78" width="36" height="34" rx="4" fill="url(#bWindowGrad)"/>
+          <rect x="138" y="78" width="36" height="34" rx="4" fill="url(#bWindowGrad)"/>
+          <rect x="182" y="78" width="36" height="34" rx="4" fill="url(#bWindowGrad)"/>
+          <rect x="226" y="78" width="36" height="34" rx="4" fill="url(#bWindowGrad)"/>
+          <rect x="270" y="78" width="36" height="34" rx="4" fill="url(#bWindowGrad)"/>
+        </g>
+        <g fill="#fff" opacity="0.18">
+          <path d="M52 80 L84 80 L77 94 L52 94Z"/>
+          <path d="M96 80 L128 80 L121 94 L96 94Z"/>
+          <path d="M140 80 L172 80 L165 94 L140 94Z"/>
+          <path d="M184 80 L216 80 L209 94 L184 94Z"/>
+          <path d="M228 80 L260 80 L253 94 L228 94Z"/>
+          <path d="M272 80 L304 80 L297 94 L272 94Z"/>
+        </g>
+        <rect x="42" y="80" width="20" height="58" fill="#15151c" rx="2"/>
+        <rect x="30" y="128" width="340" height="2" fill="url(#bAccent)" opacity="0.8"/>
+        <!-- Wheels -->
+        <g>
+          <circle cx="105" cy="158" r="18" fill="#1a1a22"/>
+          <circle cx="105" cy="158" r="10" fill="#0a0a10"/>
+          <circle cx="105" cy="158" r="4" fill="#444"/>
+        </g>
+        <g>
+          <circle cx="295" cy="158" r="18" fill="#1a1a22"/>
+          <circle cx="295" cy="158" r="10" fill="#0a0a10"/>
+          <circle cx="295" cy="158" r="4" fill="#444"/>
+        </g>
+        <!-- Headlight -->
+        <ellipse cx="36" cy="118" rx="3" ry="5" fill="#ffe082"/>
+        <ellipse cx="36" cy="118" rx="1.5" ry="2.5" fill="#fff"/>
+        <!-- Taillight -->
+        <rect x="365" y="112" width="4" height="10" fill="#f44336" rx="1"/>
+        <!-- VIT text on bus -->
+        <text x="200" y="107" text-anchor="middle" font-family="'Bebas Neue',sans-serif" font-size="14" fill="#333" letter-spacing="3">VIT VELLORE</text>
+      </svg>
+    </div>
+
+    <!-- Brand text center -->
+    <div class="l-brand-wrap">
+      <h1 class="l-brand" id="lBrand">
+        <span class="l-letter">T</span><span class="l-letter">R</span><span class="l-letter">A</span><span class="l-letter">C</span><span class="l-letter">K</span><span class="l-letter">I</span><span class="l-letter">T</span>
+      </h1>
+      <div class="l-accent"></div>
+      <p class="l-tagline" id="lTagline">VIT Smart Shuttle Tracker</p>
+    </div>
+
+    <!-- Progress bar bottom edge -->
+    <div class="l-progress-wrap">
+      <div class="l-progress-bar"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================
+     PAGE 1 — LOGIN
+================================ -->
+<div class="page" id="login">
+  <!-- Top Nav -->
+  <nav class="nav">
+    <div class="nav-logo">
+      <svg class="nav-bus-icon" viewBox="0 0 30 30" fill="none">
+        <rect x="2" y="7" width="26" height="14" rx="3" fill="white" opacity="0.9"/>
+        <rect x="5" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <rect x="12" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <rect x="19" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <circle cx="8" cy="23" r="3" fill="white"/>
+        <circle cx="22" cy="23" r="3" fill="white"/>
+        <circle cx="8" cy="23" r="1.5" fill="#0a0a0a"/>
+        <circle cx="22" cy="23" r="1.5" fill="#0a0a0a"/>
+      </svg>
+      <span class="nav-wordmark">TRACKIT</span>
+    </div>
+    <div class="nav-right">
+      <div class="nav-chip">VIT Vellore</div>
+      <div class="nav-live"><div class="nav-dot"></div> Live</div>
+    </div>
+  </nav>
+
+  <div class="login-container" style="margin-top:62px;height:calc(100vh - 62px);">
+    <!-- Visual Panel -->
+    <div class="login-visual">
+      <div class="login-visual-grid"></div>
+      <div class="login-visual-content">
+        <svg class="lv-big-bus" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="lvBG" x1="50%" y1="0%" x2="50%" y2="100%">
+              <stop offset="0%" stop-color="#fafafa"/>
+              <stop offset="100%" stop-color="#c8c8c8"/>
+            </linearGradient>
+          </defs>
+          <ellipse cx="200" cy="182" rx="160" ry="5" fill="#000" opacity="0.4"/>
+          <path d="M30 145 L30 88 Q30 56 60 56 L340 56 Q370 56 370 88 L370 145Z" fill="url(#lvBG)"/>
+          <line x1="35" y1="62" x2="365" y2="62" stroke="#aaa" stroke-width="2"/>
+          <rect x="50" y="78" width="36" height="34" rx="4" fill="#0a0a18"/>
+          <rect x="94" y="78" width="36" height="34" rx="4" fill="#0a0a18"/>
+          <rect x="138" y="78" width="36" height="34" rx="4" fill="#0a0a18"/>
+          <rect x="182" y="78" width="36" height="34" rx="4" fill="#0a0a18"/>
+          <rect x="226" y="78" width="36" height="34" rx="4" fill="#0a0a18"/>
+          <rect x="270" y="78" width="36" height="34" rx="4" fill="#0a0a18"/>
+          <rect x="30" y="128" width="340" height="2" fill="#999"/>
+          <circle cx="105" cy="158" r="18" fill="#1a1a22"/>
+          <circle cx="105" cy="158" r="9" fill="#0a0a10"/>
+          <circle cx="295" cy="158" r="18" fill="#1a1a22"/>
+          <circle cx="295" cy="158" r="9" fill="#0a0a10"/>
+          <ellipse cx="36" cy="118" rx="3" ry="5" fill="#ffe082"/>
+          <rect x="365" y="112" width="4" height="10" fill="#f44336" rx="1"/>
+          <text x="200" y="108" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="11" fill="#555" letter-spacing="4" font-weight="600">VIT VELLORE</text>
+        </svg>
+        <div class="lv-tagline">NEVER MISS<br/>YOUR BUS</div>
+        <div class="lv-sub">Real-time tracking for every campus shuttle</div>
+        <div class="lv-stats">
+          <div>
+            <div class="lv-stat-num">24</div>
+            <div class="lv-stat-label">Active Buses</div>
+          </div>
+          <div>
+            <div class="lv-stat-num">8</div>
+            <div class="lv-stat-label">Routes</div>
+          </div>
+          <div>
+            <div class="lv-stat-num">98%</div>
+            <div class="lv-stat-label">On Time</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Panel -->
+    <div class="login-form-panel">
+      <div class="login-form-inner">
+        <div class="login-eyebrow">Student Portal</div>
+        <div class="login-title">SIGN IN</div>
+        <div class="login-subtitle">Use your VIT institutional email to continue</div>
+
+        <div class="form-group">
+          <label class="form-label">VIT Email Address</label>
+          <div class="form-input-wrap">
+            <input class="form-input" type="email" placeholder="yourname@vit.ac.in" id="emailInput"/>
+            <span class="form-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/>
+              </svg>
+            </span>
+          </div>
+          <div class="form-hint">Must end with @vit.ac.in or @vitstudent.ac.in</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div class="form-input-wrap">
+            <input class="form-input" type="password" placeholder="••••••••" id="passInput"/>
+            <span class="form-input-icon" style="cursor:pointer;" onclick="togglePass()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+
+        <button class="login-btn" onclick="goToLocation()">Access TrackIt →</button>
+
+        <div class="login-divider">
+          <div class="login-divider-line"></div>
+          <span class="login-divider-text">or</span>
+          <div class="login-divider-line"></div>
+        </div>
+
+        <button class="google-btn" onclick="goToLocation()">
+          <svg width="16" height="16" viewBox="0 0 24 24">
+            <path fill="#fff" opacity="0.5" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#fff" opacity="0.5" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#fff" opacity="0.5" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#fff" opacity="0.5" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================
+     PAGE 2 — ENTER LOCATION
+================================ -->
+<div class="page" id="location-page">
+  <nav class="nav">
+    <div class="nav-logo">
+      <svg class="nav-bus-icon" viewBox="0 0 30 30" fill="none">
+        <rect x="2" y="7" width="26" height="14" rx="3" fill="white" opacity="0.9"/>
+        <rect x="5" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <rect x="12" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <rect x="19" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <circle cx="8" cy="23" r="3" fill="white"/>
+        <circle cx="22" cy="23" r="3" fill="white"/>
+        <circle cx="8" cy="23" r="1.5" fill="#0a0a0a"/>
+        <circle cx="22" cy="23" r="1.5" fill="#0a0a0a"/>
+      </svg>
+      <span class="nav-wordmark">TRACKIT</span>
+    </div>
+    <div class="nav-right">
+      <div class="nav-chip">Welcome back!</div>
+    </div>
+  </nav>
+
+  <div style="width:100%;height:100vh;display:flex;align-items:center;justify-content:center;padding-top:62px;">
+    <div class="location-card">
+      <div class="location-icon-ring">📍</div>
+      <div class="location-title">WHERE ARE YOU?</div>
+      <div class="location-sub">Select your current location so we can find the nearest bus stop</div>
+
+      <div class="location-options" id="locOptions">
+        <div class="loc-option" onclick="selectLoc(this,'Ladies Hostel')">
+          <div class="loc-option-icon">🏠</div>
+          <div class="loc-option-label">Ladies Hostel</div>
+        </div>
+        <div class="loc-option" onclick="selectLoc(this,'Mens Hostel')">
+          <div class="loc-option-icon">🏢</div>
+          <div class="loc-option-label">Men's Hostel</div>
+        </div>
+        <div class="loc-option" onclick="selectLoc(this,'Tech Zone')">
+          <div class="loc-option-icon">🏛️</div>
+          <div class="loc-option-label">Tech Zone</div>
+        </div>
+        <div class="loc-option" onclick="selectLoc(this,'Main Gate')">
+          <div class="loc-option-icon">🚪</div>
+          <div class="loc-option-label">Main Gate</div>
+        </div>
+        <div class="loc-option" onclick="selectLoc(this,'Anna Auditorium')">
+          <div class="loc-option-icon">🎭</div>
+          <div class="loc-option-label">Anna Auditorium</div>
+        </div>
+        <div class="loc-option" onclick="selectLoc(this,'Library')">
+          <div class="loc-option-icon">📚</div>
+          <div class="loc-option-label">Library</div>
+        </div>
+      </div>
+
+      <input class="loc-search" placeholder="🔍  Or type your building / block name..." id="locSearch"/>
+      <button class="loc-continue-btn" onclick="goToDashboard()">Continue to Map →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================
+     PAGE 3 — MAIN DASHBOARD
+================================ -->
+<div class="page" id="dashboard">
+  <!-- Top Nav -->
+  <nav class="nav">
+    <div class="nav-logo">
+      <svg class="nav-bus-icon" viewBox="0 0 30 30" fill="none">
+        <rect x="2" y="7" width="26" height="14" rx="3" fill="white" opacity="0.9"/>
+        <rect x="5" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <rect x="12" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <rect x="19" y="10" width="5" height="5" rx="1" fill="#0a0a0a"/>
+        <circle cx="8" cy="23" r="3" fill="white"/>
+        <circle cx="22" cy="23" r="3" fill="white"/>
+        <circle cx="8" cy="23" r="1.5" fill="#0a0a0a"/>
+        <circle cx="22" cy="23" r="1.5" fill="#0a0a0a"/>
+      </svg>
+      <span class="nav-wordmark">TRACKIT</span>
+    </div>
+    <div class="nav-right">
+      <div class="nav-live"><div class="nav-dot"></div> Live Tracking</div>
+      <div class="nav-chip" id="navLocChip">📍 Ladies Hostel</div>
+    </div>
+  </nav>
+
+  <div class="dash-layout">
+    <!-- ===== SIDEBAR ===== -->
+    <div class="dash-sidebar">
+      <div class="sidebar-scroll">
+
+        <!-- Filters -->
+        <div class="sidebar-section-label">Filter by Route Type</div>
+        <div class="filter-row">
+          <div class="filter-chip active" onclick="setFilter(this,'all')">All Buses</div>
+          <div class="filter-chip ladies" onclick="setFilter(this,'ladies')">Ladies Hostel</div>
+          <div class="filter-chip mens" onclick="setFilter(this,'mens')">Men's Hostel</div>
+          <div class="filter-chip common" onclick="setFilter(this,'common')">Academic</div>
+        </div>
+
+        <!-- Bus cards -->
+        <div class="sidebar-section-label">Nearby Buses</div>
+
+        <div class="bus-card selected" id="bc1" onclick="selectBus(1)">
+          <div class="bus-card-header">
+            <span class="bus-route-id">VIT-L1</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="bus-tag ladies">Ladies</span>
+              <div class="bus-status-dot moving"></div>
+            </div>
+          </div>
+          <div class="bus-route-label">
+            Ladies Hostel <span class="bus-route-arrow">→</span> Tech Zone A
+          </div>
+          <div class="bus-card-footer">
+            <div>
+              <div class="bus-eta">4 MIN</div>
+              <div class="bus-eta-label">ETA to your stop</div>
+            </div>
+            <div>
+              <div style="font-size:9px;color:var(--ash);margin-bottom:4px;text-align:right;">Capacity</div>
+              <div class="bus-capacity-bar"><div class="bus-capacity-fill low" style="width:35%"></div></div>
+              <div style="font-size:9px;color:var(--ash);margin-top:2px;text-align:right;">35%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bus-card" id="bc2" onclick="selectBus(2)">
+          <div class="bus-card-header">
+            <span class="bus-route-id">VIT-M2</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="bus-tag mens">Men's</span>
+              <div class="bus-status-dot moving"></div>
+            </div>
+          </div>
+          <div class="bus-route-label">
+            Men's Hostel <span class="bus-route-arrow">→</span> Academic Block
+          </div>
+          <div class="bus-card-footer">
+            <div>
+              <div class="bus-eta">7 MIN</div>
+              <div class="bus-eta-label">ETA to your stop</div>
+            </div>
+            <div>
+              <div style="font-size:9px;color:var(--ash);margin-bottom:4px;text-align:right;">Capacity</div>
+              <div class="bus-capacity-bar"><div class="bus-capacity-fill mid" style="width:68%"></div></div>
+              <div style="font-size:9px;color:var(--ash);margin-top:2px;text-align:right;">68%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bus-card" id="bc3" onclick="selectBus(3)">
+          <div class="bus-card-header">
+            <span class="bus-route-id">VIT-C3</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="bus-tag common">Common</span>
+              <div class="bus-status-dot stopped"></div>
+            </div>
+          </div>
+          <div class="bus-route-label">
+            Main Gate <span class="bus-route-arrow">→</span> Library <span class="bus-route-arrow">→</span> AB Block
+          </div>
+          <div class="bus-card-footer">
+            <div>
+              <div class="bus-eta">12 MIN</div>
+              <div class="bus-eta-label">ETA to your stop</div>
+            </div>
+            <div>
+              <div style="font-size:9px;color:var(--ash);margin-bottom:4px;text-align:right;">Capacity</div>
+              <div class="bus-capacity-bar"><div class="bus-capacity-fill high" style="width:90%"></div></div>
+              <div style="font-size:9px;color:var(--ash);margin-top:2px;text-align:right;">90% — Full</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Today's Schedule -->
+        <div class="sidebar-section-label">Today's Schedule — VIT-L1</div>
+        <div class="schedule-strip">
+          <div class="schedule-time-row">
+            <span class="schedule-time">07:30</span>
+            <span class="schedule-route">Ladies Hostel → Tech Zone</span>
+            <span class="schedule-status on-time">On Time</span>
+          </div>
+          <div class="schedule-time-row">
+            <span class="schedule-time">08:15</span>
+            <span class="schedule-route">Tech Zone → Ladies Hostel</span>
+            <span class="schedule-status on-time">On Time</span>
+          </div>
+          <div class="schedule-time-row">
+            <span class="schedule-time">09:00</span>
+            <span class="schedule-route">Ladies Hostel → AB Block</span>
+            <span class="schedule-status delayed">+5 Min</span>
+          </div>
+          <div class="schedule-time-row">
+            <span class="schedule-time">13:00</span>
+            <span class="schedule-route">AB Block → Ladies Hostel</span>
+            <span class="schedule-status on-time">On Time</span>
+          </div>
+          <div class="schedule-time-row">
+            <span class="schedule-time">17:30</span>
+            <span class="schedule-route">Tech Zone → Ladies Hostel</span>
+            <span class="schedule-status on-time">Scheduled</span>
+          </div>
+        </div>
+
+        <!-- Driver info -->
+        <div class="sidebar-section-label">Driver Info — VIT-L1</div>
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:var(--r-md);padding:14px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:18px;">🧑‍✈️</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--white);">Rajesh Kumar</div>
+              <div style="font-size:11px;color:var(--ash);">8+ yrs experience · VIT-L1</div>
+            </div>
+            <div style="margin-left:auto;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#4caf50;box-shadow:0 0 6px #4caf50;"></div>
+            </div>
+          </div>
+          <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:rgba(255,255,255,0.04);border-radius:var(--r-sm);padding:8px 10px;text-align:center;">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--white);">4.9</div>
+              <div style="font-size:9px;color:var(--ash);letter-spacing:0.08em;">RATING</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04);border-radius:var(--r-sm);padding:8px 10px;text-align:center;">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--white);">98%</div>
+              <div style="font-size:9px;color:var(--ash);letter-spacing:0.08em;">ON-TIME</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:20px;"></div>
+      </div>
+
+      <!-- SOS button pinned at bottom -->
+      <button class="sos-btn" onclick="alert('SOS Alert sent! Security has been notified.')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        SOS — Emergency Alert
+      </button>
+    </div>
+
+    <!-- ===== MAP AREA ===== -->
+    <div class="dash-map-area" style="padding-bottom:58px;">
+      <div class="fake-map">
+        <div class="map-bg"></div>
+        <div class="map-grid"></div>
+
+        <!-- Campus roads (stylized) -->
+        <div class="map-roads">
+          <div class="road-line h thick" style="top:30%;"></div>
+          <div class="road-line h" style="top:50%;"></div>
+          <div class="road-line h" style="top:70%;"></div>
+          <div class="road-line v thick" style="left:30%;"></div>
+          <div class="road-line v" style="left:55%;"></div>
+          <div class="road-line v" style="left:75%;"></div>
+        </div>
+
+        <!-- Campus blocks -->
+        <div class="campus-block" style="left:5%;top:10%;width:18%;height:15%;"></div>
+        <div class="campus-label" style="left:5.5%;top:11%;color:rgba(255,255,255,0.25);">LADIES HOSTEL</div>
+
+        <div class="campus-block" style="left:35%;top:5%;width:18%;height:22%;"></div>
+        <div class="campus-label" style="left:37%;top:6%;">TECH ZONE</div>
+
+        <div class="campus-block" style="left:60%;top:8%;width:20%;height:18%;"></div>
+        <div class="campus-label" style="left:62%;top:9%;">ACADEMIC BLOCK</div>
+
+        <div class="campus-block" style="left:5%;top:55%;width:20%;height:15%;"></div>
+        <div class="campus-label" style="left:6%;top:56%;">MEN'S HOSTEL</div>
+
+        <div class="campus-block" style="left:35%;top:55%;width:15%;height:12%;"></div>
+        <div class="campus-label" style="left:36%;top:56%;">LIBRARY</div>
+
+        <div class="campus-block" style="left:60%;top:52%;width:22%;height:18%;"></div>
+        <div class="campus-label" style="left:61%;top:53%;">ANNA AUDITORIUM</div>
+
+        <!-- My location -->
+        <div class="map-me" style="left:10%;top:18%;">
+          <div class="map-me-ring"></div>
+          <div class="map-me-dot"></div>
+        </div>
+
+        <!-- Bus markers -->
+        <div class="map-bus map-bus-1" style="left:22%;top:48%;" onclick="selectBus(1)">
+          <div class="map-bus-label">VIT-L1 · 4 MIN</div>
+          <div class="map-bus-pulse"></div>
+          <div class="map-bus-icon">🚌</div>
+        </div>
+
+        <div class="map-bus map-bus-2" style="left:60%;top:62%;" onclick="selectBus(2)">
+          <div class="map-bus-label">VIT-M2 · 7 MIN</div>
+          <div class="map-bus-pulse"></div>
+          <div class="map-bus-icon">🚌</div>
+        </div>
+
+        <div class="map-bus map-bus-3" style="left:40%;top:28%;" onclick="selectBus(3)">
+          <div class="map-bus-label">VIT-C3 · 12 MIN</div>
+          <div class="map-bus-pulse"></div>
+          <div class="map-bus-icon">🚌</div>
+        </div>
+
+        <!-- Bus stops -->
+        <div style="position:absolute;left:18%;top:30%;transform:translate(-50%,-50%);z-index:12;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--white);border:2px solid #555;"></div>
+          <div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:7px;color:rgba(255,255,255,0.4);white-space:nowrap;">STOP A</div>
+        </div>
+        <div style="position:absolute;left:55%;top:30%;transform:translate(-50%,-50%);z-index:12;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--white);border:2px solid #555;"></div>
+          <div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:7px;color:rgba(255,255,255,0.4);white-space:nowrap;">STOP B</div>
+        </div>
+        <div style="position:absolute;left:30%;top:50%;transform:translate(-50%,-50%);z-index:12;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--white);border:2px solid #555;"></div>
+          <div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:7px;color:rgba(255,255,255,0.4);white-space:nowrap;">STOP C</div>
+        </div>
+
+        <!-- Map search -->
+        <div class="map-search-bar">
+          <svg class="map-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input class="map-search-input" placeholder="Search stops, buildings..." />
+        </div>
+
+        <!-- Map controls -->
+        <div class="map-controls">
+          <div class="map-ctrl-btn" title="Zoom in">+</div>
+          <div class="map-ctrl-btn" title="Zoom out">−</div>
+          <div class="map-ctrl-btn" title="My location" onclick="alert('Centering on your location...')">◎</div>
+          <div class="map-ctrl-btn" title="Layers" onclick="alert('Layer switcher: Standard / Satellite / Dark')">⊞</div>
+          <div class="map-ctrl-btn" title="Refresh" onclick="alert('Refreshing bus positions...')">↻</div>
+        </div>
+
+        <!-- Announcement -->
+        <div class="map-announce">
+          <div class="map-announce-icon">⚠️</div>
+          <div class="map-announce-text">VIT-C3 delayed by ~5 min near Main Gate due to road works.</div>
+        </div>
+
+        <!-- ETA card -->
+        <div class="map-eta-card">
+          <div class="meta-eta-title">Next Bus — VIT-L1</div>
+          <div class="meta-eta-value">4<span style="font-size:24px;color:var(--ash);">MIN</span></div>
+          <div class="meta-eta-sub">Stop A · Ladies Hostel Gate · 35% capacity</div>
+          <div class="meta-eta-progress"><div class="meta-eta-fill"></div></div>
+        </div>
+
+        <!-- Heatmap legend -->
+        <div class="heatmap-legend">
+          <div class="heatmap-legend-title">Crowd Level</div>
+          <div class="heatmap-row">
+            <div class="heatmap-swatch" style="background:#4caf50;"></div>
+            <span class="heatmap-row-label">Low — &lt;40%</span>
+          </div>
+          <div class="heatmap-row">
+            <div class="heatmap-swatch" style="background:#ff9800;"></div>
+            <span class="heatmap-row-label">Medium — 40–75%</span>
+          </div>
+          <div class="heatmap-row">
+            <div class="heatmap-swatch" style="background:#f44336;"></div>
+            <span class="heatmap-row-label">High — &gt;75%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Tab Bar -->
+  <div class="dash-tabbar">
+    <button class="tab-btn active" onclick="setTab(this)">
+      <span class="tab-icon">🗺️</span>
+      <span class="tab-label">Live Map</span>
+    </button>
+    <button class="tab-btn" onclick="setTab(this)">
+      <span class="tab-icon">🚌</span>
+      <span class="tab-label">Buses</span>
+    </button>
+    <button class="tab-btn" onclick="setTab(this);showSchedulePanel()">
+      <span class="tab-icon">🕐</span>
+      <span class="tab-label">Schedule</span>
+    </button>
+    <button class="tab-btn" onclick="setTab(this)" style="position:relative;">
+      <span class="tab-icon">🔔</span>
+      <span class="tab-label">Alerts</span>
+      <div class="badge">2</div>
+    </button>
+    <button class="tab-btn" onclick="setTab(this)">
+      <span class="tab-icon">👤</span>
+      <span class="tab-label">Profile</span>
+    </button>
+  </div>
+</div>
+
+<script>
+/* ============================
+   LOADER ANIMATION
+   ============================ */
+(function initLoader() {
+  // Make streaks
+  const streakHost = document.getElementById('lStreaks');
+  for (let i = 0; i < 5; i++) {
+    const s = document.createElement('div');
+    s.className = 'l-streak';
+    s.style.top = (Math.random()*4-2)+'px';
+    s.style.animationDelay = (i*0.42+Math.random()*0.3).toFixed(2)+'s';
+    s.style.animationDuration = (2.2+Math.random()*1.2).toFixed(2)+'s';
+    streakHost.appendChild(s);
+  }
+
+  // Letter reveal
+  const letters = Array.from(document.querySelectorAll('.l-letter'));
+  // Reveal right to left: I, T, K, C, A, R, T
+  const order = [6,5,4,3,2,1,0];
+  const STEP = 155;
+  setTimeout(() => {
+    order.forEach((idx,i) => {
+      setTimeout(() => letters[idx].classList.add('in'), i*STEP);
+    });
+  }, 2050);
+  setTimeout(() => document.getElementById('lTagline').classList.add('in'), 3100);
+
+  // After ~4s transition to login
+  setTimeout(() => {
+    switchPage('login');
+  }, 4200);
+})();
+
+/* ============================
+   PAGE SWITCHING
+   ============================ */
+function switchPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ============================
+   LOGIN
+   ============================ */
+function togglePass() {
+  const p = document.getElementById('passInput');
+  p.type = p.type === 'password' ? 'text' : 'password';
+}
+
+function goToLocation() {
+  const email = document.getElementById('emailInput').value;
+  // basic validation — allow empty for demo
+  switchPage('location-page');
+}
+
+/* ============================
+   LOCATION PAGE
+   ============================ */
+let selectedLoc = '';
+function selectLoc(el, name) {
+  document.querySelectorAll('.loc-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedLoc = name;
+}
+
+function goToDashboard() {
+  if(selectedLoc) {
+    document.getElementById('navLocChip').textContent = '📍 '+selectedLoc;
+  }
+  switchPage('dashboard');
+}
+
+/* ============================
+   DASHBOARD — FILTERS
+   ============================ */
+function setFilter(chip, type) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+
+  const cards = [
+    {el: document.getElementById('bc1'), type:'ladies'},
+    {el: document.getElementById('bc2'), type:'mens'},
+    {el: document.getElementById('bc3'), type:'common'},
+  ];
+  cards.forEach(c => {
+    if(type === 'all' || c.type === type) {
+      c.el.style.display = '';
+    } else {
+      c.el.style.display = 'none';
+    }
+  });
+}
+
+/* ============================
+   DASHBOARD — BUS SELECT
+   ============================ */
+const busData = {
+  1: { name:'VIT-L1', eta:'4 MIN', route:'Ladies Hostel → Tech Zone A', cap:'35%' },
+  2: { name:'VIT-M2', eta:'7 MIN', route:'Men\'s Hostel → Academic Block', cap:'68%' },
+  3: { name:'VIT-C3', eta:'12 MIN', route:'Main Gate → Library → AB Block', cap:'90%' },
+};
+
+function selectBus(id) {
+  document.querySelectorAll('.bus-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('bc'+id).classList.add('selected');
+
+  const d = busData[id];
+  document.querySelector('.meta-eta-title').textContent = 'Next Bus — '+d.name;
+  document.querySelector('.meta-eta-value').innerHTML =
+    d.eta.replace(' MIN','') +
+    '<span style="font-size:24px;color:var(--ash);">MIN</span>';
+  document.querySelector('.meta-eta-sub').textContent = d.route+' · '+d.cap+' capacity';
+}
+
+/* ============================
+   DASHBOARD — TAB BAR
+   ============================ */
+function setTab(btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function showSchedulePanel() {
+  // just a UX hint for now
+  setTimeout(() => alert('Full schedule view coming — showing Today\'s Schedule in sidebar for now.'), 100);
+}
+
+/* ============================
+   LIVE ETA CLOCK (fake countdown)
+   ============================ */
+setInterval(() => {
+  // simulate small fluctuations
+}, 5000);
+</script>
+</body>
+</html>
